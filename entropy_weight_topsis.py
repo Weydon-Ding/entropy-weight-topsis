@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 
 def data_standardization(X, types):
@@ -26,7 +27,7 @@ def non_zero_translation(Y):
     """
     # 计算需要平移的量（最小值的相反数 + epsilon）
     min_val = np.min(Y)
-    epsilon = 1e-6
+    epsilon = 0.0001  # 平移的最小增量值
     shift = (-min_val + epsilon) if min_val <= 0 else 0.0
     return Y + shift
 
@@ -134,89 +135,73 @@ def entropy_weight_topsis(X, types):
     # 计算综合评价指数（相对贴近度）
     C = calculate_comprehensive_index(d_plus, d_minus)
 
-    # 生成 Markdown 内容
     years = [2018, 2019, 2020, 2021, 2022, 2023]
-    headers = ["年份"] + [f"指标{i + 1}" for i in range(Y.shape[1])]
+    headers = [f"指标{i + 1}" for i in range(Y.shape[1])]
 
-    markdown_content = ""
+    # 创建 ExcelWriter 对象
+    with pd.ExcelWriter('topsis_results.xlsx') as writer:
+        # 标准化并进行非零平移后的矩阵
+        df_Y = pd.DataFrame(Y.T, index=headers, columns=years)
+        df_Y.index.name = '指标'
+        df_Y.to_excel(writer, sheet_name='标准化并进行非零平移后的矩阵')
 
-    # 标准化并进行非零平移后的矩阵
-    markdown_content += "### 标准化并进行非零平移后的矩阵\n"
-    markdown_content += "| " + " | ".join(headers) + " |\n"
-    markdown_content += "| " + " | ".join(["---"] * len(headers)) + " |\n"
-    for i, year in enumerate(years):
-        row = [str(year)] + [f"{val:.4f}" for val in Y[i]]
-        markdown_content += "| " + " | ".join(row) + " |\n"
+        # 指标所占比重（p）
+        df_p = pd.DataFrame(p.T, index=headers, columns=years)
+        df_p.index.name = '指标'
+        df_p.to_excel(writer, sheet_name='指标所占比重（p）')
 
-    # 指标所占比重（p）
-    markdown_content += "\n### 指标所占比重（p）\n"
-    markdown_content += "| " + " | ".join(headers) + " |\n"
-    markdown_content += "| " + " | ".join(["---"] * len(headers)) + " |\n"
-    for i, year in enumerate(years):
-        row = [str(year)] + [f"{val:.4f}" for val in p[i]]
-        markdown_content += "| " + " | ".join(row) + " |\n"
+        # 熵值
+        df_E = pd.DataFrame(E, index=headers, columns=['熵值'])
+        df_E.index.name = '指标'
+        df_E.to_excel(writer, sheet_name='熵值')
 
-    # 熵值
-    markdown_content += "\n### 熵值\n"
-    markdown_content += "| 统计指标 | " + " | ".join([f"指标{i + 1}" for i in range(len(E))]) + " |\n"
-    markdown_content += "| --- | " + " | ".join(["---"] * len(E)) + " |\n"
-    markdown_content += "| 熵值 | " + " | ".join([f"{val:.4f}" for val in E]) + " |\n"
+        # 差异化系数（1 - 熵值）
+        df_diff = pd.DataFrame(diff_coeff, index=headers, columns=['差异化系数'])
+        df_diff.index.name = '指标'
+        df_diff.to_excel(writer, sheet_name='差异化系数（1 - 熵值）')
 
-    # 差异化系数（1 - 熵值）
-    markdown_content += "\n### 差异化系数（1 - 熵值）\n"
-    markdown_content += "| 统计指标 | " + " | ".join([f"指标{i + 1}" for i in range(len(diff_coeff))]) + " |\n"
-    markdown_content += "| --- | " + " | ".join(["---"] * len(diff_coeff)) + " |\n"
-    markdown_content += "| 差异化系数 | " + " | ".join([f"{val:.4f}" for val in diff_coeff]) + " |\n"
+        # 熵权（指标的权重 w）
+        df_w = pd.DataFrame(w, index=headers, columns=['熵权'])
+        df_w.index.name = '指标'
+        df_w.to_excel(writer, sheet_name='熵权（指标的权重 w）')
 
-    # 熵权（指标的权重 w）
-    markdown_content += "\n### 熵权（指标的权重 w）\n"
-    markdown_content += "| 统计指标 | " + " | ".join([f"指标{i + 1}" for i in range(len(w))]) + " |\n"
-    markdown_content += "| --- | " + " | ".join(["---"] * len(w)) + " |\n"
-    markdown_content += "| 熵权 | " + " | ".join([f"{val:.4f}" for val in w]) + " |\n"
+        # 正理想解
+        df_Z_plus = pd.DataFrame(Z_plus, index=headers, columns=['正理想解'])
+        df_Z_plus.index.name = '指标'
+        df_Z_plus.to_excel(writer, sheet_name='正理想解')
 
-    # 正理想解
-    markdown_content += "\n### 正理想解\n"
-    markdown_content += "| 统计指标 | " + " | ".join([f"指标{i + 1}" for i in range(len(Z_plus))]) + " |\n"
-    markdown_content += "| --- | " + " | ".join(["---"] * len(Z_plus)) + " |\n"
-    markdown_content += "| 正理想解 | " + " | ".join([f"{val:.4f}" for val in Z_plus]) + " |\n"
+        # 负理想解
+        df_Z_minus = pd.DataFrame(Z_minus, index=headers, columns=['负理想解'])
+        df_Z_minus.index.name = '指标'
+        df_Z_minus.to_excel(writer, sheet_name='负理想解')
 
-    # 负理想解
-    markdown_content += "\n### 负理想解\n"
-    markdown_content += "| 统计指标 | " + " | ".join([f"指标{i + 1}" for i in range(len(Z_minus))]) + " |\n"
-    markdown_content += "| --- | " + " | ".join(["---"] * len(Z_minus)) + " |\n"
-    markdown_content += "| 负理想解 | " + " | ".join([f"{val:.4f}" for val in Z_minus]) + " |\n"
+        # 各方案与正理想解的欧氏距离
+        df_d_plus = pd.DataFrame(d_plus, index=years, columns=['欧氏距离'])
+        df_d_plus.index.name = '年份'
+        df_d_plus.to_excel(writer, sheet_name='各方案与正理想解的欧氏距离')
 
-    # 各方案与正理想解的欧氏距离
-    markdown_content += "\n### 各方案与正理想解的欧氏距离\n"
-    markdown_content += "| 年份 | " + " | ".join([str(year) for year in years]) + " |\n"
-    markdown_content += "| --- | " + " | ".join(["---"] * len(years)) + " |\n"
-    markdown_content += "| 欧氏距离 | " + " | ".join([f"{val:.4f}" for val in d_plus]) + " |\n"
+        # 各方案与负理想解的欧氏距离
+        df_d_minus = pd.DataFrame(d_minus, index=years, columns=['欧氏距离'])
+        df_d_minus.index.name = '年份'
+        df_d_minus.to_excel(writer, sheet_name='各方案与负理想解的欧氏距离')
 
-    # 各方案与负理想解的欧氏距离
-    markdown_content += "\n### 各方案与负理想解的欧氏距离\n"
-    markdown_content += "| 年份 | " + " | ".join([str(year) for year in years]) + " |\n"
-    markdown_content += "| --- | " + " | ".join(["---"] * len(years)) + " |\n"
-    markdown_content += "| 欧氏距离 | " + " | ".join([f"{val:.4f}" for val in d_minus]) + " |\n"
+        # 相对贴近度
+        df_C = pd.DataFrame(C, index=years, columns=['相对贴近度'])
+        df_C.index.name = '年份'
+        df_C.to_excel(writer, sheet_name='相对贴近度')
 
-    # 相对贴近度
-    markdown_content += "\n### 相对贴近度\n"
-    markdown_content += "| 年份 | " + " | ".join([str(year) for year in years]) + " |\n"
-    markdown_content += "| --- | " + " | ".join(["---"] * len(years)) + " |\n"
-    markdown_content += "| 相对贴近度 | " + " | ".join([f"{val:.4f}" for val in C]) + " |\n"
+        # 对综合评价指数进行排名
+        sorted_indices = np.argsort(C)[::-1]
+        ranked_years = [years[i] for i in sorted_indices]
+        ranked_scores = C[sorted_indices]
+        ranking_df = pd.DataFrame({
+            '排名': range(1, len(ranked_years) + 1),
+            '年份': ranked_years,
+            '综合评价指数': ranked_scores
+        })
+        ranking_df.to_excel(writer, sheet_name='各年份综合评价指数排名', index=False)
 
-    # 对综合评价指数进行排名
-    sorted_indices = np.argsort(C)[::-1]
-    ranked_years = [years[i] for i in sorted_indices]
-    ranked_scores = C[sorted_indices]
-
-    # 输出排名结果
-    markdown_content += "\n### 各年份综合评价指数排名\n"
-    markdown_content += "| 排名 | 年份 | 综合评价指数 |\n"
-    markdown_content += "| --- | --- | --- |\n"
-    for i, (year, score) in enumerate(zip(ranked_years, ranked_scores), start=1):
-        markdown_content += f"| {i} | {year} | {score:.4f} |\n"
-
-    return markdown_content
+    return C
 
 
 # 原始数据
@@ -245,13 +230,7 @@ X = np.array([[float(val.replace(',', '')) for val in line.split('\t')] for line
 # 指标类型列表，1 表示效益型，0 表示成本型
 types = [1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1]
 
-# 调用主函数生成 Markdown 内容
-markdown_content = entropy_weight_topsis(X, types)
+# 调用主函数
+C = entropy_weight_topsis(X, types)
 
-# 保存 Markdown 文件
-try:
-    with open('topsis_result.md', 'w', encoding='utf-8') as f:
-        f.write(markdown_content)
-    print("Markdown 文件已成功保存为 topsis_result.md")
-except Exception as e:
-    print(f"保存文件时出现错误: {e}")
+print("结果已成功保存为 topsis_results.xlsx。")
