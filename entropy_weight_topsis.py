@@ -107,7 +107,7 @@ def entropy_weight_topsis(X, types):
     熵权 TOPSIS 法主函数
     :param X: 原始数据矩阵
     :param types: 指标类型列表，1 表示效益型，0 表示成本型
-    :return: 各方案的综合评价指数
+    :return: 各方案的综合评价指数及相关结果
     """
     # 数据标准化
     Y = data_standardization(X, types)
@@ -135,73 +135,18 @@ def entropy_weight_topsis(X, types):
     # 计算综合评价指数（相对贴近度）
     C = calculate_comprehensive_index(d_plus, d_minus)
 
-    years = [2018, 2019, 2020, 2021, 2022, 2023]
-    headers = [f"指标{i + 1}" for i in range(Y.shape[1])]
-
-    # 创建 ExcelWriter 对象
-    with pd.ExcelWriter('topsis_results.xlsx') as writer:
-        # 标准化并进行非零平移后的矩阵
-        df_Y = pd.DataFrame(Y.T, index=headers, columns=years)
-        df_Y.index.name = '指标'
-        df_Y.to_excel(writer, sheet_name='标准化并进行非零平移后的矩阵')
-
-        # 指标所占比重（p）
-        df_p = pd.DataFrame(p.T, index=headers, columns=years)
-        df_p.index.name = '指标'
-        df_p.to_excel(writer, sheet_name='指标所占比重（p）')
-
-        # 熵值
-        df_E = pd.DataFrame(E, index=headers, columns=['熵值'])
-        df_E.index.name = '指标'
-        df_E.to_excel(writer, sheet_name='熵值')
-
-        # 差异化系数（1 - 熵值）
-        df_diff = pd.DataFrame(diff_coeff, index=headers, columns=['差异化系数'])
-        df_diff.index.name = '指标'
-        df_diff.to_excel(writer, sheet_name='差异化系数（1 - 熵值）')
-
-        # 熵权（指标的权重 w）
-        df_w = pd.DataFrame(w, index=headers, columns=['熵权'])
-        df_w.index.name = '指标'
-        df_w.to_excel(writer, sheet_name='熵权（指标的权重 w）')
-
-        # 正理想解
-        df_Z_plus = pd.DataFrame(Z_plus, index=headers, columns=['正理想解'])
-        df_Z_plus.index.name = '指标'
-        df_Z_plus.to_excel(writer, sheet_name='正理想解')
-
-        # 负理想解
-        df_Z_minus = pd.DataFrame(Z_minus, index=headers, columns=['负理想解'])
-        df_Z_minus.index.name = '指标'
-        df_Z_minus.to_excel(writer, sheet_name='负理想解')
-
-        # 各方案与正理想解的欧氏距离
-        df_d_plus = pd.DataFrame(d_plus, index=years, columns=['欧氏距离'])
-        df_d_plus.index.name = '年份'
-        df_d_plus.to_excel(writer, sheet_name='各方案与正理想解的欧氏距离')
-
-        # 各方案与负理想解的欧氏距离
-        df_d_minus = pd.DataFrame(d_minus, index=years, columns=['欧氏距离'])
-        df_d_minus.index.name = '年份'
-        df_d_minus.to_excel(writer, sheet_name='各方案与负理想解的欧氏距离')
-
-        # 相对贴近度
-        df_C = pd.DataFrame(C, index=years, columns=['相对贴近度'])
-        df_C.index.name = '年份'
-        df_C.to_excel(writer, sheet_name='相对贴近度')
-
-        # 对综合评价指数进行排名
-        sorted_indices = np.argsort(C)[::-1]
-        ranked_years = [years[i] for i in sorted_indices]
-        ranked_scores = C[sorted_indices]
-        ranking_df = pd.DataFrame({
-            '排名': range(1, len(ranked_years) + 1),
-            '年份': ranked_years,
-            '综合评价指数': ranked_scores
-        })
-        ranking_df.to_excel(writer, sheet_name='各年份综合评价指数排名', index=False)
-
-    return C
+    return {
+        '标准化矩阵': Y,
+        '指标比重': p,
+        '熵值': E,
+        '差异化系数': diff_coeff,
+        '权重': w,
+        '正理想解': Z_plus,
+        '负理想解': Z_minus,
+        '正理想解距离': d_plus,
+        '负理想解距离': d_minus,
+        '综合评价指数': C
+    }
 
 
 # 原始数据
@@ -230,7 +175,146 @@ X = np.array([[float(val.replace(',', '')) for val in line.split('\t')] for line
 # 指标类型列表，1 表示效益型，0 表示成本型
 types = [1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1]
 
-# 调用主函数
-C = entropy_weight_topsis(X, types)
+# 每三行作为一组进行处理
+num_groups = len(types) // 3
+years = [2018, 2019, 2020, 2021, 2022, 2023]
 
-print("结果已成功保存为 topsis_results.xlsx。")
+# 创建 ExcelWriter 对象
+with pd.ExcelWriter('topsis_results_all.xlsx') as writer:
+    # 计算 15 个指标整体的结果
+    all_results = entropy_weight_topsis(X, types)
+    headers = [f"指标{i + 1}" for i in range(X.shape[1])]
+
+    # 标准化并进行非零平移后的矩阵
+    df_Y = pd.DataFrame(all_results['标准化矩阵'].T, index=headers, columns=years)
+    df_Y.index.name = '指标'
+    df_Y.to_excel(writer, sheet_name='全部指标_标准化矩阵')
+
+    # 指标所占比重（p）
+    df_p = pd.DataFrame(all_results['指标比重'].T, index=headers, columns=years)
+    df_p.index.name = '指标'
+    df_p.to_excel(writer, sheet_name='全部指标_指标比重')
+
+    # 熵值
+    df_E = pd.DataFrame(all_results['熵值'], index=headers, columns=['熵值'])
+    df_E.index.name = '指标'
+    df_E.to_excel(writer, sheet_name='全部指标_熵值')
+
+    # 差异化系数（1 - 熵值）
+    df_diff = pd.DataFrame(all_results['差异化系数'], index=headers, columns=['差异化系数'])
+    df_diff.index.name = '指标'
+    df_diff.to_excel(writer, sheet_name='全部指标_差异化系数')
+
+    # 熵权（指标的权重 w）
+    df_w = pd.DataFrame(all_results['权重'], index=headers, columns=['熵权'])
+    df_w.index.name = '指标'
+    df_w.to_excel(writer, sheet_name='全部指标_熵权')
+
+    # 正理想解
+    df_Z_plus = pd.DataFrame(all_results['正理想解'], index=headers, columns=['正理想解'])
+    df_Z_plus.index.name = '指标'
+    df_Z_plus.to_excel(writer, sheet_name='全部指标_正理想解')
+
+    # 负理想解
+    df_Z_minus = pd.DataFrame(all_results['负理想解'], index=headers, columns=['负理想解'])
+    df_Z_minus.index.name = '指标'
+    df_Z_minus.to_excel(writer, sheet_name='全部指标_负理想解')
+
+    # 各方案与正理想解的欧氏距离
+    df_d_plus = pd.DataFrame(all_results['正理想解距离'], index=years, columns=['欧氏距离'])
+    df_d_plus.index.name = '年份'
+    df_d_plus.to_excel(writer, sheet_name='全部指标_正理想解距离')
+
+    # 各方案与负理想解的欧氏距离
+    df_d_minus = pd.DataFrame(all_results['负理想解距离'], index=years, columns=['欧氏距离'])
+    df_d_minus.index.name = '年份'
+    df_d_minus.to_excel(writer, sheet_name='全部指标_负理想解距离')
+
+    # 相对贴近度
+    df_C = pd.DataFrame(all_results['综合评价指数'], index=years, columns=['相对贴近度'])
+    df_C.index.name = '年份'
+    df_C.to_excel(writer, sheet_name='全部指标_相对贴近度')
+
+    # 对综合评价指数进行排名
+    sorted_indices = np.argsort(all_results['综合评价指数'])[::-1]
+    ranked_years = [years[i] for i in sorted_indices]
+    ranked_scores = all_results['综合评价指数'][sorted_indices]
+    ranking_df = pd.DataFrame({
+        '排名': range(1, len(ranked_years) + 1),
+        '年份': ranked_years,
+        '综合评价指数': ranked_scores
+    })
+    ranking_df.to_excel(writer, sheet_name='全部指标_排名', index=False)
+
+    # 计算每组（一级指标）的结果
+    for i in range(num_groups):
+        start_index = i * 3
+        end_index = start_index + 3
+        X_group = X[:, start_index:end_index]
+        types_group = types[start_index:end_index]
+        headers = [f"指标{start_index + k + 1}" for k in range(3)]
+
+        group_results = entropy_weight_topsis(X_group, types_group)
+
+        # 标准化并进行非零平移后的矩阵
+        df_Y = pd.DataFrame(group_results['标准化矩阵'].T, index=headers, columns=years)
+        df_Y.index.name = '指标'
+        df_Y.to_excel(writer, sheet_name=f'组{i + 1}_标准化矩阵')
+
+        # 指标所占比重（p）
+        df_p = pd.DataFrame(group_results['指标比重'].T, index=headers, columns=years)
+        df_p.index.name = '指标'
+        df_p.to_excel(writer, sheet_name=f'组{i + 1}_指标比重')
+
+        # 熵值
+        df_E = pd.DataFrame(group_results['熵值'], index=headers, columns=['熵值'])
+        df_E.index.name = '指标'
+        df_E.to_excel(writer, sheet_name=f'组{i + 1}_熵值')
+
+        # 差异化系数（1 - 熵值）
+        df_diff = pd.DataFrame(group_results['差异化系数'], index=headers, columns=['差异化系数'])
+        df_diff.index.name = '指标'
+        df_diff.to_excel(writer, sheet_name=f'组{i + 1}_差异化系数')
+
+        # 熵权（指标的权重 w）
+        df_w = pd.DataFrame(group_results['权重'], index=headers, columns=['熵权'])
+        df_w.index.name = '指标'
+        df_w.to_excel(writer, sheet_name=f'组{i + 1}_熵权')
+
+        # 正理想解
+        df_Z_plus = pd.DataFrame(group_results['正理想解'], index=headers, columns=['正理想解'])
+        df_Z_plus.index.name = '指标'
+        df_Z_plus.to_excel(writer, sheet_name=f'组{i + 1}_正理想解')
+
+        # 负理想解
+        df_Z_minus = pd.DataFrame(group_results['负理想解'], index=headers, columns=['负理想解'])
+        df_Z_minus.index.name = '指标'
+        df_Z_minus.to_excel(writer, sheet_name=f'组{i + 1}_负理想解')
+
+        # 各方案与正理想解的欧氏距离
+        df_d_plus = pd.DataFrame(group_results['正理想解距离'], index=years, columns=['欧氏距离'])
+        df_d_plus.index.name = '年份'
+        df_d_plus.to_excel(writer, sheet_name=f'组{i + 1}_正理想解距离')
+
+        # 各方案与负理想解的欧氏距离
+        df_d_minus = pd.DataFrame(group_results['负理想解距离'], index=years, columns=['欧氏距离'])
+        df_d_minus.index.name = '年份'
+        df_d_minus.to_excel(writer, sheet_name=f'组{i + 1}_负理想解距离')
+
+        # 相对贴近度
+        df_C = pd.DataFrame(group_results['综合评价指数'], index=years, columns=['相对贴近度'])
+        df_C.index.name = '年份'
+        df_C.to_excel(writer, sheet_name=f'组{i + 1}_相对贴近度')
+
+        # 对综合评价指数进行排名
+        sorted_indices = np.argsort(group_results['综合评价指数'])[::-1]
+        ranked_years = [years[i] for i in sorted_indices]
+        ranked_scores = group_results['综合评价指数'][sorted_indices]
+        ranking_df = pd.DataFrame({
+            '排名': range(1, len(ranked_years) + 1),
+            '年份': ranked_years,
+            '综合评价指数': ranked_scores
+        })
+        ranking_df.to_excel(writer, sheet_name=f'组{i + 1}_排名', index=False)
+
+print("结果已成功保存为 topsis_results_all.xlsx。")
