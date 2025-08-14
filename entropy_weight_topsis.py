@@ -151,33 +151,52 @@ def entropy_weight_topsis(X, types):
 
 # 原始数据
 data = """
-0.024	0.0205	0.0871	0.0779	-0.0173	-0.1092
-0.0289	0.0254	0.1459	0.1633	-0.0658	-0.309
-0.0263	0.0225	0.1061	0.1217	-0.0374	-0.2565
-3.3684	3.1132	1.9549	1.625	1.568	1.6858
-2.2791	2.2145	1.6351	1.3475	1.3887	1.502
-0.1852	0.2034	0.6125	0.6053	0.5456	0.6429
-0.9136	0.9088	0.8216	0.6401	0.4637	0.4259
-3.9912	4.2404	4.8013	4.2197	4.0514	4.9715
-4.9615	4.9259	3.046	1.7867	1.144	1.0163
-0.199	0.0427	0.3655	0.0517	-0.3005	-0.145
-0.0541	0.0427	0.9591	0.039	-0.1052	-0.0289
--0.4089	-0.108	5.433	0.2071	-1.2148	-4.8869
-0.1864	0.0531	0.2267	0.0013	0.0696	-0.1393
-0.05291	0.03201	0.01273	0.00997	0.0024	0.00075
-0.2373	0.2625	0.3615	0.1217	0.1334	0.1336
+5.5976 3.8603 1.2053 2.3114 1.2053 2.1375
+0.2487 0.2170 0.1788 0.1653 0.0440 -0.0215
+0.7435 0.3445 -0.1824 0.2696 -0.6231 -0.4991
+0.1852 0.2034 0.6125 0.6053 0.5456 0.6429
+3.3684 3.1132 1.9549 1.6250 1.5680 1.6858
+0.0025 0.0002 0.4110 0.3172 0.2157 0.3761
+0.0334 0.0306 0.0041 0.0106 0.0159 0.0197
+0.2428 0.4710 0.4639 0.2683 0.1568 0.1749
+-0.0041 0.1094 0.0632 0.0877 0.0737 -0.0617
+0.2000 0.1800 0.6000 0.6800 -0.2800 -1.2400
+0.1940 -0.1730 0.3667 0.0871 -0.3727 -0.2161
+0.2334 0.1822 0.5232 0.6219 0.8591 0.9632
+0.0000 0.0000 0.3879 0.3355 0.2998 0.2440
+0.0529 0.0320 0.0127 0.0100 0.0002 0.0008
+0.0194 0.0476 0.0347 0.0299 0.0504 0.0739
+0.2373 0.2625 0.3615 0.1217 0.1334 0.1336
+0.0000 0.0000 0.0074 0.0113 0.0119 0.0097
 """
 
 # 将数据转换为 numpy 数组并转置
 lines = data.strip().split('\n')
-X = np.array([[float(val.replace(',', '')) for val in line.split('\t')] for line in lines]).T
+X = np.array([[float(val.replace(',', '')) for val in line.split()] for line in lines]).T
 
 # 指标类型列表，1 表示效益型，0 表示成本型
-types = [1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1]
+types = [0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1]
+# 检查指标数量是否匹配
+if X.shape[1] != len(types):
+    raise ValueError(f"指标数量不匹配：数据有{X.shape[1]}个指标，types有{len(types)}个类型")
 
-# 每三行作为一组进行处理
-num_groups = len(types) // 3
 years = [2018, 2019, 2020, 2021, 2022, 2023]
+
+# 格式：(start_index, end_index)，表示包含从start到end的指标（含两端）
+groups = [
+    (0, 2),
+    (3, 6),
+    (7, 9),
+    (10, 12),
+    (13, 16),
+]
+# 确保分组覆盖所有指标
+all_indices = set()
+for start, end in groups:
+    all_indices.update(range(start, end+1))
+if all_indices != set(range(len(types))):
+    raise ValueError("分组未覆盖所有指标，请检查分组索引")
+
 
 # 创建 ExcelWriter 对象
 with pd.ExcelWriter('topsis_results_all.xlsx') as writer:
@@ -246,65 +265,66 @@ with pd.ExcelWriter('topsis_results_all.xlsx') as writer:
     })
     ranking_df.to_excel(writer, sheet_name='全部指标_排名', index=False)
 
-    # 计算每组（一级指标）的结果
-    for i in range(num_groups):
-        start_index = i * 3
-        end_index = start_index + 3
-        X_group = X[:, start_index:end_index]
-        types_group = types[start_index:end_index]
-        headers = [f"指标{start_index + k + 1}" for k in range(3)]
+    # 按自定义分组处理每组数据
+    for group_idx, (start, end) in enumerate(groups, 1):  # group_idx从1开始计数
+        # 截取当前组的指标数据和类型（注意切片是左闭右开，需end+1）
+        X_group = X[:, start:end+1]
+        types_group = types[start:end+1]
+        # 生成当前组的指标名称（如指标1-2、指标3-7等）
+        headers = [f"指标{k + 1}" for k in range(start, end+1)]
 
+        # 调用熵权TOPSIS算法计算组内结果
         group_results = entropy_weight_topsis(X_group, types_group)
 
         # 标准化并进行非零平移后的矩阵
         df_Y = pd.DataFrame(group_results['标准化矩阵'].T, index=headers, columns=years)
         df_Y.index.name = '指标'
-        df_Y.to_excel(writer, sheet_name=f'组{i + 1}_标准化矩阵')
+        df_Y.to_excel(writer, sheet_name=f'组{group_idx}_标准化矩阵')
 
         # 指标所占比重（p）
         df_p = pd.DataFrame(group_results['指标比重'].T, index=headers, columns=years)
         df_p.index.name = '指标'
-        df_p.to_excel(writer, sheet_name=f'组{i + 1}_指标比重')
+        df_p.to_excel(writer, sheet_name=f'组{group_idx}_指标比重')
 
         # 熵值
         df_E = pd.DataFrame(group_results['熵值'], index=headers, columns=['熵值'])
         df_E.index.name = '指标'
-        df_E.to_excel(writer, sheet_name=f'组{i + 1}_熵值')
+        df_E.to_excel(writer, sheet_name=f'组{group_idx}_熵值')
 
         # 差异化系数（1 - 熵值）
         df_diff = pd.DataFrame(group_results['差异化系数'], index=headers, columns=['差异化系数'])
         df_diff.index.name = '指标'
-        df_diff.to_excel(writer, sheet_name=f'组{i + 1}_差异化系数')
+        df_diff.to_excel(writer, sheet_name=f'组{group_idx}_差异化系数')
 
         # 熵权（指标的权重 w）
         df_w = pd.DataFrame(group_results['权重'], index=headers, columns=['熵权'])
         df_w.index.name = '指标'
-        df_w.to_excel(writer, sheet_name=f'组{i + 1}_熵权')
+        df_w.to_excel(writer, sheet_name=f'组{group_idx}_熵权')
 
         # 正理想解
         df_Z_plus = pd.DataFrame(group_results['正理想解'], index=headers, columns=['正理想解'])
         df_Z_plus.index.name = '指标'
-        df_Z_plus.to_excel(writer, sheet_name=f'组{i + 1}_正理想解')
+        df_Z_plus.to_excel(writer, sheet_name=f'组{group_idx}_正理想解')
 
         # 负理想解
         df_Z_minus = pd.DataFrame(group_results['负理想解'], index=headers, columns=['负理想解'])
         df_Z_minus.index.name = '指标'
-        df_Z_minus.to_excel(writer, sheet_name=f'组{i + 1}_负理想解')
+        df_Z_minus.to_excel(writer, sheet_name=f'组{group_idx}_负理想解')
 
         # 各方案与正理想解的欧氏距离
         df_d_plus = pd.DataFrame(group_results['正理想解距离'], index=years, columns=['欧氏距离'])
         df_d_plus.index.name = '年份'
-        df_d_plus.to_excel(writer, sheet_name=f'组{i + 1}_正理想解距离')
+        df_d_plus.to_excel(writer, sheet_name=f'组{group_idx}_正理想解距离')
 
         # 各方案与负理想解的欧氏距离
         df_d_minus = pd.DataFrame(group_results['负理想解距离'], index=years, columns=['欧氏距离'])
         df_d_minus.index.name = '年份'
-        df_d_minus.to_excel(writer, sheet_name=f'组{i + 1}_负理想解距离')
+        df_d_minus.to_excel(writer, sheet_name=f'组{group_idx}_负理想解距离')
 
         # 相对贴近度
         df_C = pd.DataFrame(group_results['综合评价指数'], index=years, columns=['相对贴近度'])
         df_C.index.name = '年份'
-        df_C.to_excel(writer, sheet_name=f'组{i + 1}_相对贴近度')
+        df_C.to_excel(writer, sheet_name=f'组{group_idx}_相对贴近度')
 
         # 对综合评价指数进行排名
         sorted_indices = np.argsort(group_results['综合评价指数'])[::-1]
@@ -315,6 +335,6 @@ with pd.ExcelWriter('topsis_results_all.xlsx') as writer:
             '年份': ranked_years,
             '综合评价指数': ranked_scores
         })
-        ranking_df.to_excel(writer, sheet_name=f'组{i + 1}_排名', index=False)
+        ranking_df.to_excel(writer, sheet_name=f'组{group_idx}_排名', index=False)
 
 print("结果已成功保存为 topsis_results_all.xlsx。")
